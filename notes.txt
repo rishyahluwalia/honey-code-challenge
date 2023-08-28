@@ -1,0 +1,48 @@
+NOTES
+
+- Which duplicate should be treated as the correct event?
+    > Can decide based on first, last, max timestamp, min timestamp (i.e. which event costs the most)
+    > Looking at the test file, it is asserting based on the first of the duplicates, so solution will be built accordingly
+
+- Assume that events are pre-sorted in chronological order
+
+- Each "on" must have a corresponding "off" for which the timestamp is greater than or equal to itself, as you cannot turn off appliances in the past.
+
+- Assume initial timestamp = 0
+
+- Appliance can be turned on/off multiple times per minute
+
+PART 1
+
+- Added test case: 'should calculate correctly when the appliance is off the whole time'
+
+- Added test case: 'should handle multiple events at the same timestamp'
+
+- Added test case: 'should calculate correctly when the appliance is turned on at the beginning of the day'
+
+- Added test case: 'should throw an error on an unsupported state'
+
+PART 3
+
+- Using Math.ceil since days are not counted from 0, and we are using the divisor / dividend method to compute the day
+
+- Assume max days in month = 31, and we are not catering for the type of month (i.e. Feb - 28/29)
+
+OPTIMIZATIONS
+
+- [DONE] PART 3 - Stop once the previous closest event for day is reached (linear search)
+
+- Binary search to reduce time (i.e. if day was 30)
+
+TODO / SUGGESTIONS
+
+- Test utils.js
+
+- Error messages in PART 3 should be namespaced i.e. INVALID_INPUT
+
+
+OBSERVATIONS
+
+- 345,600 probable maximum possible events per day
+    > Humans have 250ms avg reaction time => 4 times per second => 4 * 60 * 1440
+    > Should be factored into decision for optimisation

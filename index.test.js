@@ -1,8 +1,8 @@
+const { MAX_IN_PERIOD } = require('./constants');
 const {
   calculateEnergyUsageSimple,
   calculateEnergySavings,
   calculateEnergyUsageForDay,
-  MAX_IN_PERIOD,
 } = require('./index');
 
 // Part 1
@@ -16,7 +16,7 @@ describe('calculateEnergyUsageSimple', () => {
       ],
     };
     expect(calculateEnergyUsageSimple(usageProfile1)).toEqual(
-      126 + (1440 - 833)
+      126 + (MAX_IN_PERIOD - 833)
     );
   });
 
@@ -40,7 +40,23 @@ describe('calculateEnergyUsageSimple', () => {
       initial: 'on',
       events: [],
     };
-    expect(calculateEnergyUsageSimple(usageProfile3)).toEqual(1440);
+    expect(calculateEnergyUsageSimple(usageProfile3)).toEqual(MAX_IN_PERIOD);
+  });
+
+  it('should calculate correctly when the appliance is off the whole time', () => {
+    const usageProfile4 = {
+      initial: 'off',
+      events: [],
+    };
+    expect(calculateEnergyUsageSimple(usageProfile4)).toEqual(0);
+  });
+
+  it('should calculate correctly when the appliance is simultaneously turned on at the beginning of the day', () => {
+    const usageProfile4 = {
+      initial: 'off',
+      events: [{ timestamp: 0, state: 'on' }],
+    };
+    expect(calculateEnergyUsageSimple(usageProfile4)).toEqual(MAX_IN_PERIOD);
   });
 
   it('should handle duplicate on events', () => {
@@ -54,7 +70,7 @@ describe('calculateEnergyUsageSimple', () => {
       ],
     };
     expect(calculateEnergyUsageSimple(usageProfile)).toEqual(
-      150 - 30 + (1440 - 656)
+      150 - 30 + (MAX_IN_PERIOD - 656)
     );
   });
 
@@ -69,13 +85,42 @@ describe('calculateEnergyUsageSimple', () => {
       ],
     };
     expect(calculateEnergyUsageSimple(usageProfile)).toEqual(
-      80 - 0 + (1440 - 656)
+      80 - 0 + (MAX_IN_PERIOD - 656)
+    );
+  });
+
+  it('should handle multiple events at the same timestamp', () => {
+    const usageProfile = {
+      initial: 'off',
+      events: [
+        { timestamp: 30, state: 'on' },
+        { timestamp: 30, state: 'off' },
+        { timestamp: 30, state: 'on' },
+        { timestamp: 656, state: 'off' },
+      ],
+    };
+    expect(calculateEnergyUsageSimple(usageProfile)).toEqual(
+      30 - 30 + (656 - 30)
+    );
+  });
+
+  it('should throw an error on an unsupported state', () => {
+    const usageProfile = {
+      initial: 'off',
+      events: [
+        { timestamp: 30, state: 'on' },
+        { timestamp: 30, state: 'foo' },
+        { timestamp: 30, state: 'on' },
+        { timestamp: 656, state: 'off' },
+      ],
+    };
+    expect(() => calculateEnergyUsageSimple(usageProfile)).toThrow(
+      /INVALID_DATA: "foo" state not supported/
     );
   });
 });
 
 // Part 2
-
 describe('calculateEnergySavings', () => {
   it('should return zero for always on', () => {
     const usageProfile = {
@@ -181,7 +226,7 @@ describe('calculateEnergyUsageForDay', () => {
     ).toEqual(0);
     expect(
       calculateEnergyUsageForDay({ initial: 'on', events: [] }, 5)
-    ).toEqual(1440);
+    ).toEqual(MAX_IN_PERIOD);
   });
 
   it('should calculate day 1 correctly', () => {

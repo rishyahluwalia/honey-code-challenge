@@ -1,6 +1,21 @@
-/* The maximum number of minutes in a period (a day) */
-
-const MAX_IN_PERIOD = 1440;
+const {
+  MAX_IN_PERIOD,
+  ON,
+  OFF,
+  FINAL_EVENT,
+  AUTO_OFF,
+  MIN_DAYS,
+  MAX_DAYS,
+} = require('./constants');
+const {
+  getBaseEvent,
+  getLastElementFromArr,
+  filterDuplicates,
+  filterRedundantOff,
+  calculateInitialStateForDay,
+  addComputedDayToEvents,
+  isInteger,
+} = require('./utils');
 
 /**
  * PART 1
@@ -36,7 +51,33 @@ const MAX_IN_PERIOD = 1440;
  * ```
  */
 
-const calculateEnergyUsageSimple = (profile) => {}
+const calculateEnergyUsageSimple = (profile) => {
+  const { initial: initialState, events } = profile;
+  const latestEvent = getLastElementFromArr(events);
+  let totalOffTimestamps = 0;
+  let totalOnTimestamps = 0;
+
+  /* Pad the stream of events with a start and conditional end event */
+  const paddedEvents = [
+    getBaseEvent(initialState),
+    ...events,
+    ...(latestEvent?.state !== OFF ? [FINAL_EVENT] : []),
+  ];
+
+  const uniqueEvents = paddedEvents.filter(filterDuplicates);
+
+  uniqueEvents.forEach(({ state, timestamp }) => {
+    if (state === OFF) {
+      totalOffTimestamps += timestamp;
+    } else if (state === ON) {
+      totalOnTimestamps += timestamp;
+    } else {
+      throw new Error(`INVALID_DATA: "${state}" state not supported`);
+    }
+  });
+
+  return totalOffTimestamps - totalOnTimestamps;
+};
 
 /**
  * PART 2
@@ -70,7 +111,42 @@ const calculateEnergyUsageSimple = (profile) => {}
  * and not manual intervention.
  */
 
-const calculateEnergySavings = (profile) => {};
+const calculateEnergySavings = (profile) => {
+  const { initial: initialState, events } = profile;
+  const latestEvent = getLastElementFromArr(events);
+  let totalSavings = 0;
+
+  /* Pad the stream of events with a start and conditional end event */
+  const paddedEvents = [
+    getBaseEvent(initialState),
+    ...events,
+    ...(latestEvent?.state !== OFF ? [FINAL_EVENT] : []),
+  ];
+
+  const uniqueEvents = paddedEvents.filter(filterDuplicates);
+
+  /**
+   * For now we are only removing "redundant off" events, but in future more
+   * filters can be added to "sanitisedEvents" to remove non-sensical data.
+   */
+  const sanitisedEvents = uniqueEvents.filter(filterRedundantOff);
+
+  sanitisedEvents.forEach(({ state, timestamp }, index) => {
+    /* No need to check if nextEvent is "on" as we have filtered redundant offs above */
+    if (state === AUTO_OFF) {
+      const isLastEvent = index === sanitisedEvents.length - 1;
+
+      if (isLastEvent) {
+        totalSavings += MAX_IN_PERIOD - timestamp;
+      } else {
+        const nextEvent = sanitisedEvents[index + 1];
+        totalSavings += nextEvent.timestamp - timestamp;
+      }
+    }
+  });
+
+  return totalSavings;
+};
 
 /**
  * PART 3
@@ -78,7 +154,7 @@ const calculateEnergySavings = (profile) => {};
  * The process of producing metrics usually requires handling multiple days of data. The
  * examples so far have produced a calculation assuming the day starts at '0' for a single day.
  *
- * In this exercise, the timestamp field contains the number of minutes since a
+ * In this exercise, the timestamp field contains the number of minutes since an
  * arbitrary point in time (the "Epoch"). To simplify calculations, assume:
  *  - the Epoch starts at the beginning of the month (i.e. midnight on day 1 is timestamp 0)
  *  - our calendar simply has uniform length 'days' - the first day is '1' and the last day is '365'
@@ -98,13 +174,37 @@ const calculateEnergySavings = (profile) => {};
  * been given for the month.
  */
 
-const isInteger = (number) => Number.isInteger(number);
+const calculateEnergyUsageForDay = (monthUsageProfile, day) => {
+  if (!isInteger(day)) throw new Error('must be an integer');
+  if (day < MIN_DAYS || day > MAX_DAYS) throw new Error('day out of range');
 
-const calculateEnergyUsageForDay = (monthUsageProfile, day) => {};
+  const { initial: initialState, events } = monthUsageProfile;
+
+  const uniqueEvents = events.filter(filterDuplicates);
+
+  /* Denormalise events with computed day */
+  const uniqueEventsWithDays = addComputedDayToEvents(uniqueEvents, day);
+
+  const dayProfileEvents = uniqueEventsWithDays
+    /* Remove redundant days */
+    .filter((event) => event.day === day)
+    /* Remove computed "day" to match the profile's required "event" struture */
+    .map((event) => ({
+      state: event.state,
+      /* Convert timestamps to be relative to the day for better re-usability with "calculateEnergyUsageSimple" */
+      timestamp: event.timestamp - MAX_IN_PERIOD * (event.day - 1),
+    }));
+
+  const dayProfile = {
+    initial: calculateInitialStateForDay({ uniqueEvents, day, initialState }),
+    events: dayProfileEvents,
+  };
+
+  return calculateEnergyUsageSimple(dayProfile);
+};
 
 module.exports = {
   calculateEnergyUsageSimple,
   calculateEnergySavings,
   calculateEnergyUsageForDay,
-  MAX_IN_PERIOD,
 };
